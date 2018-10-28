@@ -1,7 +1,7 @@
 wikipedia-retention
 ==============================
 
-Graph analysis of Wi edit history
+Graph analysis of Wikipedia edit history. 
 
 Project Organization
 ------------
