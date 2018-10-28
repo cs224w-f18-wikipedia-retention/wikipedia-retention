@@ -14,7 +14,7 @@ wikipedia_schema = T.StructType([
     T.StructField("article_title",  T.StringType(),     nullable=False),
     T.StructField("timestamp",      T.StringType(),     nullable=False),
     T.StructField("username",       T.StringType(),     nullable=False),
-    T.StructField("user_id",        T.StringType(),     nullable=False),
+    T.StructField("user_id",        T.StringType(),     nullable=True),
     # other fields
     T.StructField("category",       T.StringType(),     nullable=True),
     T.StructField("image",          T.StringType(),     nullable=True),
@@ -30,42 +30,37 @@ wikipedia_schema = T.StructType([
     T.StructField("textdata",       T.IntegerType(),    nullable=False),
 ])
 
-_cast_map = {
-    T.IntegerType: int,
-    T.BooleanType: bool,
-    T.StringType: str,
-}
+# The list of fields with a method for casting the string into the appropriate type.
+_to_cast = [
+    ('article_id', int),
+    ('rev_id', int),
+    ('minor', bool),
+    ('textdata', int)
+]
+
 
 def default_value(item):
     return item if len(item) > 1 else item + [None]
-
-
-def cast_values(record, schema=wikipedia_schema):
-    """Convert the values in a dictionary to the type specified in the schema."""
-    # a non-exhaustive mapping of types
-    def cast(k, v):
-        dtype = type(schema[str(k)].dataType)
-        if dtype == T.StringType:
-            return v
-        return _cast_map[dtype](v) if v else None
-
-    return {k: cast(k, v) for k, v in record.iteritems()}
 
 
 def process_edit(edit):
     """Process each line in the edit history"""
 
     entries = [entry.split(' ', 1) for entry in edit.split('\n')]
-    # lower case keys and add default values
-    pairs = [(k.lower(), v) for k,v in map(default_value, entries)]
+    # lower case keys and add default values, ignore the header
+    pairs = {key.lower(): value for key, value in map(default_value, entries[1:])}
 
     # each REVISION has 6 fields
-    revision = pairs[0][1]
+    revision = entries[0][1]
     revision_columns = ["article_id", "rev_id", "article_title", "timestamp", "username", "user_id"]
-    revision_pairs = zip(revision_columns, revision.split())
+    # the user_id is missing sometimes, so add a default value of None
+    revision_pairs = zip(revision_columns, revision.split() + [None])
+    pairs.update(revision_pairs)
 
-    d = dict(revision_pairs + pairs[1:])
-    return Row(**cast_values(d))
+    for name, cast in _to_cast:
+        pairs[name] = cast(pairs[name])
+
+    return Row(**pairs)
 
 
 if __name__ == '__main__':
