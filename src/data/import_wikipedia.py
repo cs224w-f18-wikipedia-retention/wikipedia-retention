@@ -1,19 +1,8 @@
+import os
 import re
 import sys
-from pyspark import SparkConf, SparkContext
-import os
+from pyspark.sql import SparkSession
 
-conf = SparkConf()
-sc = SparkContext(conf=conf)
-conf = sc._jsc.hadoopConfiguration()
-conf.set("textinputformat.record.delimiter", "\n\n")
-
-compressed_file = 'enwiki-20080103.main.bz2'
-input_file = 'wiki-main1.txt'
-output_file = 'wiki-processed1/'
-edits_per_round = 1000000
-lines_per_edit = 14
-rounds = 0
 
 def process_edit(edit):
     lines = edit.split('\n')
@@ -34,6 +23,19 @@ def parse_value_line(line):
     else:
         return ''
 
-parsed_edits = sc.textFile(input_file)
-processed_edits = parsed_edits.map(lambda edit: process_edit(edit), parsed_edits)
-processed_edits.saveAsTextFile(output_file)
+
+if __name__ == '__main__':
+    spark = SparkSession.builder.getOrCreate()
+    sc = spark.sparkContext
+    conf = sc._jsc.hadoopConfiguration()
+    conf.set("textinputformat.record.delimiter", "\n\n")
+
+    input_file = '../data/raw/enwiki-20080103.main.bz2'
+    output_file = '../data/processed/enwiki-20080103/'
+    edits_per_round = 1000000
+    lines_per_edit = 14
+    rounds = 0
+
+    parsed_edits = sc.textFile(input_file)
+    processed_edits = parsed_edits.map(process_edit)
+    processed_edits.saveAsTextFile(output_file)
