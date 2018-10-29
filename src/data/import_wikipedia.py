@@ -2,72 +2,115 @@ import os
 import re
 import sys
 
-from pyspark.sql import SparkSession, Row
+from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
 
 
-wikipedia_schema = T.StructType([
-    # REVISION fields
-    T.StructField("article_id",     T.IntegerType(),    nullable=False),
-    T.StructField("rev_id",         T.IntegerType(),    nullable=False),
-    T.StructField("article_title",  T.StringType(),     nullable=False),
-    T.StructField("timestamp",      T.StringType(),     nullable=False),
-    T.StructField("username",       T.StringType(),     nullable=False),
-    T.StructField("user_id",        T.StringType(),     nullable=True),
-    # other fields
-    T.StructField("category",       T.StringType(),     nullable=True),
-    T.StructField("image",          T.StringType(),     nullable=True),
-    T.StructField("main",           T.StringType(),     nullable=True),
-    T.StructField("talk",           T.StringType(),     nullable=True),
-    T.StructField("user",           T.StringType(),     nullable=True),
-    T.StructField("user_talk",      T.StringType(),     nullable=True),
-    T.StructField("other",          T.StringType(),     nullable=True),
-    T.StructField("external",       T.StringType(),     nullable=True),
-    T.StructField("template",       T.StringType(),     nullable=True),
-    T.StructField("comment",        T.StringType(),     nullable=True),
-    T.StructField("minor",          T.BooleanType(),    nullable=False),
-    T.StructField("textdata",       T.IntegerType(),    nullable=False),
-])
-
-# The list of fields with a method for casting the string into the appropriate type.
-_to_cast = [
-    ('article_id', int),
-    ('rev_id', int),
-    ('minor', bool),
-    ('textdata', int)
+wikipedia_field_names = [
+    "revision",
+    "category",
+    "image",
+    "main",
+    "talk",
+    "user",
+    "user_talk",
+    "other",
+    "external",
+    "template",
+    "comment",
+    "minor",
+    "textdata"
 ]
 
-
-def default_value(item):
-    return item if len(item) > 1 else item + [None]
-
-
-def process_edit(edit):
-    """Process each line in the edit history"""
-
-    entries = [entry.split(' ', 1) for entry in edit.split('\n')]
-    # lower case keys and add default values, ignore the header
-    pairs = {key.lower(): value for key, value in map(default_value, entries[1:])}
-
-    # each REVISION has 6 fields
-    revision = entries[0][1]
-    revision_columns = ["article_id", "rev_id", "article_title", "timestamp", "username", "user_id"]
-    # the user_id is missing sometimes, so add a default value of None
-    revision_pairs = zip(revision_columns, revision.split() + [None])
-    pairs.update(revision_pairs)
-
-    for name, cast in _to_cast:
-        pairs[name] = cast(pairs[name])
-
-    return Row(**pairs)
+wikipedia_schema = T.StructType([
+    T.StructField(name, T.StringType(), nullable=True)
+    for name in wikipedia_field_names
+])
 
 
-if __name__ == '__main__':
+def get_spark():
     spark = SparkSession.builder.getOrCreate()
     sc = spark.sparkContext
     conf = sc._jsc.hadoopConfiguration()
     conf.set("textinputformat.record.delimiter", "\n\n")
+    return spark
+
+
+def _default_value(item):
+    return item[1] if len(item) > 1 else None
+
+
+def process(edit):
+    entries = [entry.split(' ', 1) for entry in edit.split('\n')]
+    values = tuple(map(_default_value, entries))
+    return value
+
+
+def process_edit(edit):
+    """Process each line in the edit history
+
+    Returns a tuple of (article_id, user_id, is_minor, wordcount, timestamp)
+    """
+    values = process(edit)
+
+
+def extract(spark, path):
+    records = spark.sparkContext.textFile(path).map(process_edit)
+    return spark.createDataFrame(records, schema=wikipedia_schema)
+
+
+def transform(dataframe, limit=None):
+    # prepare the revision column
+    revision_columns = [
+        "article_id", "rev_id", "article_title",
+        "timestamp", "username", "user_id"
+    ]
+    revision_query = [
+        F.col("_revision").getItem(i).alias(name)
+        for i, name in enumerate(revision_columns)
+    ]
+    dataframe = (
+        dataframe
+        .withColumn("_revision", F.split("revision", ' '))
+        .select(revision_query + dataframe.columns[1:])
+        .drop("_revision")
+    )
+
+    # add in the proper typing
+    typemap = dict([
+        ('article_id',  'int'),
+        ('rev_id',      'int'),
+        ('timestamp',   'timestamp'),
+        ('minor',       'boolean'),
+        ('textdata',    'int'),
+    ])
+    def cast(name):
+        if name in typemap:
+            return F.col(name).cast(typemap[name])
+        return F.col(name)
+
+    cast_query = map(cast, dataframe.columns)
+    dataframe = dataframe.select(cast_query)
+
+    # include limits
+    if limit:
+        dataframe = dataframe.limit(limit)
+
+    return (
+        dataframe
+        .withColumn("year", F.year("timestamp"))
+        .withColumn("month", F.month("timestamp"))
+    )
+
+
+def write_parquet(dataframe, path):
+    dataframe.write.partitionBy("year", "month").write(path)
+
+
+if __name__ == '__main__':
+    spark = get_spark()
+    sc = spark.sparkContext
 
     input_file = '../../data/raw/enwiki-20080103.main.bz2'
     output_file = '../../data/processed/enwiki-20080103/'
