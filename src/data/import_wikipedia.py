@@ -11,7 +11,7 @@ def process_edit(edit):
     minor = parse_value_line(lines[11])
     word_count = parse_value_line(lines[12])
     processed_arr = [article_id,user_id,minor,word_count,timestamp]
-    return ' '.join(map(str,processed_arr))
+    return '\t'.join(processed_arr)
 
 # Given line "NAME VALUE"
 # Gets VALUE
@@ -30,8 +30,8 @@ if __name__ == '__main__':
     conf = sc._jsc.hadoopConfiguration()
     conf.set("textinputformat.record.delimiter", "\n\n")
 
-    input_file = '../data/raw/enwiki-20080103.main.bz2'
-    output_file = '../data/processed/enwiki-20080103/'
+    input_file = '../../data/raw/enwiki-20080103.main.bz2'
+    output_file = '../../data/processed/enwiki-20080103/'
     edits_per_round = 1000000
     lines_per_edit = 14
     rounds = 0
