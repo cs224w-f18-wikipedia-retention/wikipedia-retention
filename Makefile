@@ -5,10 +5,9 @@
 #################################################################################
 
 PROJECT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
-BUCKET = [OPTIONAL] your-bucket-for-syncing-data (do not include 's3://')
-PROFILE = default
+BUCKET = cs224w-f18-wikipedia
 PROJECT_NAME = wikipedia-retention
-PYTHON_INTERPRETER = python
+PYTHON_INTERPRETER = python2
 
 ifeq (,$(shell which conda))
 HAS_CONDA=False
@@ -38,21 +37,13 @@ clean:
 lint:
 	flake8 src
 
-## Upload Data to S3
-sync_data_to_s3:
-ifeq (default,$(PROFILE))
-	aws s3 sync data/ s3://$(BUCKET)/data/
-else
-	aws s3 sync data/ s3://$(BUCKET)/data/ --profile $(PROFILE)
-endif
+## Upload Data to Google Cloud Storage
+sync_data_to_gs:
+	gsutil -m rsync -r data/ gs://$(BUCKET)/data/
 
-## Download Data from S3
-sync_data_from_s3:
-ifeq (default,$(PROFILE))
-	aws s3 sync s3://$(BUCKET)/data/ data/
-else
-	aws s3 sync s3://$(BUCKET)/data/ data/ --profile $(PROFILE)
-endif
+## Download Data from Google Cloud Storage
+sync_data_from_gs:
+	gsutil -m rsync -r gs://$(BUCKET)/data/ data/
 
 ## Set up python interpreter environment
 create_environment:
