@@ -17,10 +17,11 @@ rounds = 0
 def process_edit(edit):
     lines = edit.split('\n')
     header_line = lines[0]
-    _revision, article_id, rev_id, article_title, timestamp, _username, user_id = header_line.split(' ')
+    _revision, article_id, rev_id, article_title, timestamp, username, user_id = header_line.split(' ')
     minor = parse_value_line(lines[11])
     word_count = parse_value_line(lines[12])
-    processed_arr = [article_id,user_id,minor,word_count,timestamp]
+    has_bot = (re.search('bot', username, re.IGNORECASE) and 1) or 0
+    processed_arr = [article_id,user_id,minor,word_count,has_bot,timestamp]
     return ' '.join(map(str,processed_arr))
 
 # Given line "NAME VALUE"
@@ -36,5 +37,5 @@ def parse_value_line(line):
 parsed_edits = sc.textFile(compressed_file)
 processed_edits = parsed_edits.map(lambda edit: process_edit(edit), parsed_edits)
 # remove users with id starting with ip: (signifying anon)
-process_edits_noip = processed_edits.filter(lambda row: row[1][0] != 'i')
-processed_edits.saveAsTextFile(output_file)
+processed_edits_noip = processed_edits.filter(lambda row: row[1][0] != 'i')
+processed_edits_noip.saveAsTextFile(output_file)
