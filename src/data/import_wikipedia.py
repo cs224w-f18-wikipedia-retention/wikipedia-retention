@@ -54,7 +54,8 @@ def process_edit(edit):
 
 
 def extract(spark, path):
-    records = spark.sparkContext.textFile(path).map(process_edit)
+    num_partitions = spark.sparkContext.defaultParallelism * 4
+    records = spark.sparkContext.textFile(path, num_partitions).map(process_edit)
     return spark.createDataFrame(records, schema=wikipedia_schema)
 
 
@@ -108,11 +109,7 @@ def transform(dataframe, limit=None):
 
 def load(dataframe, path):
     logging.info("writing to {}".format(path))
-    (
-        dataframe.repartition("year", "quarter")
-        .write.partitionBy("year", "quarter")
-        .parquet(path, mode="overwrite") # dry-run by default
-    )
+    dataframe.write.partitionBy("year", "quarter").parquet(path, mode="overwrite")
 
 
 @click.command()
@@ -125,7 +122,7 @@ def load(dataframe, path):
     "--output-path", type=click.Path(), default="data/interim/enwiki-meta-parquet"
 )
 @click.option("--limit", type=int, default=None)
-@click.option("--dry-run/--no-dry-run", default=False)
+@click.option("--dry-run/--no-dry-run", default=True)
 def main(input_path, output_path, limit, dry_run):
     spark = get_spark()
 
@@ -139,7 +136,7 @@ def main(input_path, output_path, limit, dry_run):
     load(edits_df, output_path)
 
 
-if __name__=='__main__':
+if __name__ == "__main__":
     log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     logging.basicConfig(level=logging.INFO, format=log_fmt)
 
