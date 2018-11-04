@@ -65,11 +65,30 @@ AND A.user_id NOT LIKE 'ip:%' AND lower(username) NOT LIKE '%bot%' \
 GROUP BY A.user_id, t ")
 buf.registerTempTable("user_bases")
 
+# aggregate user features and turn into numbers
+auf = ss.sql( "\
+SELECT user_id, num_edits, distinct_article, num_minors, geom_textdata, geom_contrib \
+,big_edits, small_edits \
+,unix_timestamp(t) - 979675971 AS t_offset \
+,unix_timestamp(last_edit) - unix_timestamp(first_edit) AS t_interval \
+,unix_timestamp(first_edit) - unix_timestamp(t) AS t_offset_first \
+,unix_timestamp(t) - unix_timestamp(last_edit) AS t_offset_last \
+,ROUND(distinct_article * 1.0/num_edits,4) AS p_distinct \
+,ROUND(num_minors * 1.0/num_edits,4) AS p_minors \
+,ROUND(big_edits * 1.0/num_edits,4) AS p_big \
+,ROUND(small_edits * 1.0/num_edits,4) AS p_small \
+FROM user_bases \
+")
+auf.registerTempTable("user_features")
+
 # join basic features on labels
 vecs = ss.sql( "\
 SELECT A.*, \
 CASE WHEN COALESCE(B.contrib, 0) > 10 THEN 1 ELSE 0 END AS y \
-FROM user_bases A \
+FROM user_features A \
 LEFT JOIN user_contrib B \
 ON A.user_id = B.user_id \
 ")
+
+# done building features, now print to file
+vecs.write.format("csv").save("features")
