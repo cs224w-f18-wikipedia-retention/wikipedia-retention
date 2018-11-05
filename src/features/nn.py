@@ -68,10 +68,21 @@ dmin = scalar.data_min_
 dmax = scalar.data_max_
 Xnorm = scalar.transform(X)
 
+# sample weights
+yrat = np.sum(y == 1) / len(y)
+xrat = 1-yrat
+s_weights = np.zeros(len(y))
+s_weights[y == 0] = yrat
+s_weights[y == 1] = xrat
+
 # Logistic Regression
 clf = LR(penalty='l2', class_weight='balanced').fit(Xnorm,y)
 preds = clf.predict_proba(Xnorm)[:,1]
-log_loss(y, preds)
+class_preds = np.round(preds)
+ll = log_loss(y, preds, s_weights)
+accuracy = np.sum(class_preds == y) / len(y)
+prfs = precision_recall_fscore_support(class_preds,y,average='weighted')
+
 
 # plot hist of preds
 import matplotlib.pyplot as plt
@@ -93,3 +104,21 @@ feature_coeffs = clf.coef_[0,:]
 feature_rank = fs.ranking_
 for i in range(len(feature_names)):
     print(str(feature_names[i]) + ',' + str(feature_coeffs[i]) + ',' + str(feature_rank[i]))
+
+# feature # vs log loss (include random, or 0 features)
+ll_arr = []
+random_preds = np.zeros(len(y)) + 0.5
+ll_arr.append(log_loss(y,random_preds,s_weights))
+for i in range(len(idx)):
+    Xnorm_topx = Xnorm[:,idx[0:i+1]]
+    clf_u = LR(penalty='l2', class_weight='balanced').fit(Xnorm_topx,y)
+    preds = clf_u.predict_proba(Xnorm_topx)[:,1]
+    ll = log_loss(y, preds, s_weights)
+    ll_arr.append(ll)
+    print(str(ll))
+
+# print results
+for i in range(idx):
+    print(str(ll_arr[idx]))
+
+# graph results
