@@ -5,15 +5,60 @@ import sklearn
 from sklearn.linear_model import LogisticRegressionCV as LR
 from sklearn.metrics import log_loss
 
-# setup, hyperparameters
-fname = 'features.csv'
+# feature manifest (manually typed)
+feature_names = np.array([
+    'num_edits',
+    'distinct_article',
+    'num_minors',
+    'sum_textdata',
+    'logsum_textdata',
+    'sumlog_textdata',
+    'geom_textdata',
+    'geom_contrib',
+    'big_edits',
+    'small_edits',
+    't_offset',
+    't_interval',
+    't_offset_first',
+    't_offset_last',
+    'p_distinct',
+    'p_minors',
+    'p_big',
+    'p_small',
+    'art_edits',
+    'art_logedits',
+    'art_sumwords',
+    'art_sumlogwords',
+    'art_avglogwords',
+    'art_unique_users',
+    'art_big_edits',
+    'art_small_edits',
+    'art_ip_edits',
+    'art_bot_edits',
+    'art_total_edits',
+    'art_edits_per_user',
+    'art_user_threshold',
+    'art_p_big_edits',
+    'art_p_small_edits',
+    'art_p_ip_edits',
+    'art_p_bot_edits',
+    'art_p_period_edits'
+])
 
-# read data
-Xy_df = pd.read_csv(fname)
-Xy = Xy_df.as_matrix()
-n,m = np.shape(Xy)
-X = Xy[:,1:m-1]
-y = Xy[:,m-1]
+# setup, hyperparameters
+uf_name = 'all_user_features.csv'
+af_name = 'all_article_features.csv'
+
+user_df = pd.read_csv(uf_name, header=None)
+y = np.ndarray.astype(user_df.values[:,-1],int)
+user_df = user_df.drop([1,user_df.columns[-1]],axis=1) # drop time and y column
+article_df = pd.read_csv(af_name, header=None)
+
+# process joined data
+X_df = user_df.merge(article_df, on=0)
+X = X_df.as_matrix()
+X = np.ndarray.astype(X[:,1:],float) # remove user_id
+X[np.isnan(X)] = 0 # clear NaNs
 
 # min-max scaling
 from sklearn.preprocessing import MinMaxScaler
@@ -43,3 +88,8 @@ fs = RFE(estimator = LRm, n_features_to_select=1, step=1)
 fs.fit(Xnorm,y)
 idx = np.argsort(fs.ranking_)
 
+# print out results
+feature_coeffs = clf.coef_[0,:]
+feature_rank = fs.ranking_
+for i in range(len(feature_names)):
+    print(str(feature_names[i]) + ',' + str(feature_coeffs[i]) + ',' + str(feature_rank[i]))
