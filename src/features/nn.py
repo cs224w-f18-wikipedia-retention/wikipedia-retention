@@ -121,4 +121,8 @@ for i in range(len(idx)):
 for i in range(idx):
     print(str(ll_arr[idx]))
 
-# graph results
+# save preds to file
+yp = np.zeros((len(y),2))
+py[:,0] = y
+py[:,1] = preds
+np.savetxt('preds.csv', py, delimiter = ',', header='y,pred')
