@@ -99,7 +99,7 @@ class UnimodalUserProjection:
 
         SELECT e1, e2
         FROM unimodal_projection
-        WHERE shared_articles > {}
+        WHERE shared_articles > {} AND e1 <> e2
         ORDER BY e1
         """.format(
             threshold
@@ -114,7 +114,7 @@ class UnimodalUserProjection:
     type=click.Path(exists=True),
     default="data/processed/enwiki-meta-compact",
 )
-@click.option("--output-suffix", type=click.Path(), default="enwiki-projection")
+@click.option("--output-suffix", type=click.Path(), default="enwiki-projection-user")
 @click.option("--period", type=str, default="2007-1")
 @click.option("--dry-run/--no-dry-run", default=True)
 def main(input_path, output_suffix, period, dry_run):
