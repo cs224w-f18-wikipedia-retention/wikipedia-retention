@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import sklearn
 from sklearn.linear_model import LogisticRegressionCV as LR
-from sklearn.metrics import log_loss
+from sklearn.metrics import log_loss, precision_recall_fscore_support
 
 # feature manifest (manually typed)
 feature_names = np.array([
