@@ -20,8 +20,8 @@ class UnimodalUserProjection:
         return self
 
     def transform(self, period):
-        self.create_edges(period)
-        self.unimodal_user_projection(threshold=1)
+        self.create_bipartite_edgelist(period)
+        self.unimodal_user_projection()
         # registers table `projection`
         return self
 
@@ -42,68 +42,57 @@ class UnimodalUserProjection:
         logging.info("cleaning up: {}".format(interim_path))
         shutil.rmtree(interim_path)
 
-    def create_edges(self, period):
+    def create_bipartite_edgelist(self, period=None):
         """Create a weighted user-article graph"""
-
-        year, quarter = period.split("-")
-        query = """
+        query ="""
         with subset as (
             SELECT
+                date_format(timestamp, 'yyyy-MM-dd') as edit_date,
                 article_id,
                 cast(user_id as int) as user_id,
                 textdata
-            FROM enwiki
-            WHERE year = {} AND quarter = {}
-        ),
-
-        -- remove all nodes where the degree is < 2
-        degree as (
-            SELECT
-                user_id,
-                count(distinct article_id) as degree
-            FROM subset
-            GROUP BY 1
+            FROM
+                enwiki
         )
-
         -- collect the weighted edge-list
         SELECT
-            subset.user_id,
+            user_id,
             article_id,
-            sum(textdata) as word_count,
-            count(*) as num_edits
-        FROM subset
-        INNER JOIN degree
-        ON subset.user_id = degree.user_id
+            edit_date,
+            sum(log(textdata)) as word_count,
+            count(*) as num_edits,
+            edit_date
+        FROM
+            subset
         WHERE
-            degree > 1 AND
-            subset.user_id IS NOT NULL
-        GROUP BY 1, 2
-        """.format(
-            year, quarter
-        )
+            subset.user_id is not null
+        GROUP BY 1, 2, 3"""
         edges = self.spark.sql(query)
-        edges.createOrReplaceTempView("edges")
+        if period:
+            year, quarter = period.split('-')
+            edges = (
+                edges
+                .where("year(edit_date) = {}".format(year))
+                .where("quarter(edit_date) = {}".format(quarter))
+            )
+        edges.createOrReplaceTempView("bipartite")
 
-    def unimodal_user_projection(self, threshold=1):
+    def unimodal_user_projection(self):
         query = """
-        -- TODO: jaccard index instead of common neighbors
-        with unimodal_projection as (
+        WITH unimodal_projection as (
             SELECT
                 t1.user_id as e1,
                 t2.user_id as e2,
                 count(*) as shared_articles
-            FROM edges t1
-            JOIN edges t2 ON t1.article_id = t2.article_id
+            FROM bipartite t1
+            JOIN bipartite t2 
+            ON t1.article_id = t2.article_id AND t1.edit_date = t2.edit_date
+            WHERE t1.user_id < t2.user_id
             GROUP BY 1, 2
         )
-
-        SELECT e1, e2
+        SELECT e1, e2, shared_articles
         FROM unimodal_projection
-        WHERE shared_articles > {} AND e1 <> e2
-        ORDER BY e1
-        """.format(
-            threshold
-        )
+        """
         projection = self.spark.sql(query)
         projection.createOrReplaceTempView("projection")
 
@@ -115,18 +104,13 @@ class UnimodalUserProjection:
     default="data/processed/enwiki-meta-compact",
 )
 @click.option("--output-suffix", type=click.Path(), default="enwiki-projection-user")
-@click.option("--period", type=str, default="2007-1")
-@click.option("--dry-run/--no-dry-run", default=True)
-def main(input_path, output_suffix, period, dry_run):
+@click.option("--period", type=str)
+def main(input_path, output_suffix, period):
     transformer = UnimodalUserProjection().extract(input_path).transform(period)
-
-    name = "{}-{}".format(period, output_suffix)
-    if dry_run:
-        # TODO: move this section into `load`
-        logging.info("Dry run for {}".format(name))
-        logging.info("Rerun the command with `--no-dry-run`")
-        return
-
+    if period:
+        name = "{}-{}".format(period, output_suffix)
+    else:
+        name = output_suffix
     transformer.load(name)
 
 
