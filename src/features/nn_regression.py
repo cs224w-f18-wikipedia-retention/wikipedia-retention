@@ -38,14 +38,17 @@ y = y[time_idx]
 X[np.isnan(X[:,40]),40] = 1
 X = np.ndarray.astype(X[:,1:],float) # remove user_id
 X[np.isnan(X)] = 0 # clear NaNs
-
+# add new column for log(sum(log(textdata)))
+lslt = np.array([np.log(X[:,5])+1]).T
+X = np.append(X, lslt, 1)
 # min-max scaling
 from sklearn.preprocessing import MinMaxScaler
-scalar = MinMaxScaler(feature_range=(-1,1))
-scalar_fit = scalar.fit(X)
+scalar = MinMaxScaler(feature_range=(0,1))
+scalar.fit(X)
 dmin = scalar.data_min_
 dmax = scalar.data_max_
 Xnorm = scalar.transform(X)
+Xnorm = Xnorm - Xnorm.mean(axis=0)
 
 # NOTE: Above is mostly copy paste from logreg, after here is NN.
 # We should probably try to standardized our feature sets to make joining easier
@@ -54,38 +57,64 @@ Xnorm = scalar.transform(X)
 # could also rebalance (since so many 0 examples)
 yl = np.log(y+1) # run on log y for smoother fit
 from sklearn.model_selection import train_test_split
-X_train, X_test, y_train, y_test = train_test_split(Xnorm,yl,test_size=0.2,random_state=42)
-
-# run cross-validated hyperparameter search
 from sklearn.model_selection import GridSearchCV
-from sklearn.neural_network import MLPRegressor
-from sklearn.metrics import log_loss
-alphas = [0.1, 1, 10, 100]
-nodes = [(3), (5), (7), (9), (8, 3), (10, 3), (12, 4), (14, 5)]
-#alphas = [0.1]
-#nodes = [(10,3)]
-params = {"alpha" : alphas, "hidden_layer_sizes" : nodes}
-MLP = MLPRegressor(activation = 'relu', solver = 'adam', random_state = 112358)
-GS = GridSearchCV(MLP, params, return_train_score = True)
+from sklearn.neural_network import MLPRegressor, MLPClassifier
+from sklearn.metrics import log_loss, r2_score
 
 # train model
-GS.fit(X_train, y_train)
-preds = GS.predict(X_test)
-GS.score(X_test,y_test) # can have sample weight here
+def fit_model(model,X,y):
+    X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=0.2,random_state=115)
+    model.fit(X_train, y_train)
+    score = model.score(X_test,y_test) # can have sample weight here
+    return model, score
 
 import matplotlib.pyplot as plt
-def plot_preds(preds, y):
-    plt.plot(np.exp(preds),np.exp(y),'.')
+def plot_preds(preds, y, xlab='prediction', ylab='actual contribution'):
+    plt.plot(np.exp(preds-1),np.exp(y-1),'.')
     mx = np.exp(min(np.max(preds),np.max(y)))
     plt.plot([1,mx],[1,mx],color='red')
     plt.xscale('log')
     plt.yscale('log')
-    plt.xlabel('prediction')
-    plt.ylabel('actual contribution')
+    plt.xlabel(xlab)
+    plt.ylabel(ylab)
     plt.show()
 
 def plot_yl(yl):
     plt.hist(yl,log=True)
     plt.xlabel('log contribution')
     plt.ylabel('bin count')
+    plt.show()
+
+# NOTE: Below is the full 2-model (class * reg)
+alphas = [0.1, 1, 10, 100]
+nodes = [(3), (5), (7), (9), (8, 3), (10, 3), (12, 4), (14, 5)]
+#alphas = [0.1]
+#nodes = [(8,3)]
+params = {"alpha" : alphas, "hidden_layer_sizes" : nodes}
+theta_idx = yl > 0
+yl_theta = yl[theta_idx]
+X_theta = Xnorm[theta_idx] # note: don't rescale since we need to combine models
+# run regression model
+MLPR = MLPRegressor(activation = 'relu', solver = 'adam', random_state = 112358)
+GSR = GridSearchCV(MLPR, params, return_train_score = True)
+reg_model, reg_score = fit_model(GSR, X_theta, yl_theta)
+rm = reg_model.best_estimator_
+reg_preds = rm.predict(Xnorm) # predict on all
+# run classification model
+MLPC = MLPClassifier(activation='relu', solver='adam', random_state = 112358)
+GSC = GridSearchCV(MLPC, params, return_train_score = True)
+theta = np.ndarray.astype(theta_idx,int)
+class_model, class_score = fit_model(GSC, Xnorm, theta)
+cm = class_model.best_estimator_
+class_preds = cm.predict_proba(Xnorm)[:,1]
+# now combine
+combined_preds = class_preds * reg_preds
+combined_score = sklearn.metrics.r2_score(yl,combined_preds)
+
+# plot class hist
+def plot_class_hist(theta_idx, class_preds):
+    plt.hist([1-class_preds[theta_idx],class_preds[~theta_idx]],label=['theta=1','theta=0'],log=True,bins=20)
+    plt.xlabel("Classification error")
+    plt.ylabel("Bin Count")
+    plt.legend()
     plt.show()
