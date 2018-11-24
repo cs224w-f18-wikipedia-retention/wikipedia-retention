@@ -28,7 +28,8 @@ def main(rolx_bin, input, output, lower_bound, upper_bound):
         "-u:" + str(upper_bound),
     ], stdout=stdout, cwd=folder)
 
-    shutil.copyfile(folder + "/roles.txt", output)
+    shutil.copyfile(folder + "/roles.txt", output+'-roles')
+    shutil.copyfile(folder + "/v.txt", output+'-v' )
 
 
 if __name__ == '__main__':

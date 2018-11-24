@@ -19,7 +19,7 @@ class UnimodalUserProjection:
         df.createOrReplaceTempView("enwiki")
         return self
 
-    def transform(self, period):
+    def transform(self, period=None):
         self.create_bipartite_edgelist(period)
         self.unimodal_user_projection()
         # registers table `projection`
@@ -60,12 +60,11 @@ class UnimodalUserProjection:
             article_id,
             edit_date,
             sum(log(textdata)) as word_count,
-            count(*) as num_edits,
-            edit_date
+            count(*) as num_edits
         FROM
             subset
         WHERE
-            subset.user_id is not null
+            user_id is not null
         GROUP BY 1, 2, 3"""
         edges = self.spark.sql(query)
         if period:
