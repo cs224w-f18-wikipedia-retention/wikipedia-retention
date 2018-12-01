@@ -1,4 +1,6 @@
 import snap
+import numpy as np
+import pandas as pd
 
 path = "data/processed/enwiki-projection-user-dev.csv"
 print("loading {}".format(path))
@@ -10,7 +12,6 @@ print("edges", G.GetEdges())
 
 print("average clustering coeff", snap.GetClustCf(G))
 
-import pandas as pd
 admin_path = "data/processed/admin_mapping.csv"
 admin_df = pd.read_csv(admin_path, header=None, names=['user_id', 'username'])
 
