@@ -90,8 +90,8 @@ auf.registerTempTable("user_features")
 
 # join features on labels
 feature_vecs = ss.sql( "\
-SELECT A.*, \
-CASE WHEN COALESCE(B.contrib, 0) > 10 THEN 1 ELSE 0 END AS y \
+SELECT A.* \
+,COALESCE(B.contrib,0) AS y \
 FROM user_features A \
 LEFT JOIN user_contrib B \
 ON A.user_id = B.user_id \

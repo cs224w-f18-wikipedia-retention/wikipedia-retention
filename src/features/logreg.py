@@ -7,7 +7,7 @@ from sklearn.linear_model import LogisticRegressionCV as LR
 from sklearn.metrics import log_loss
 
 # setup, hyperparameters
-uf_name = 'all_user_features.csv'
+uf_name = 'base_features_reg.csv'
 af_name = 'all_article_features.csv'
 
 user_df = pd.read_csv(uf_name, header=None)
