@@ -5,8 +5,9 @@ import shutil
 import sys
 import logging
 from functools import partial
+from itertools import combinations
 
-from pyspark.sql import SparkSession
+from pyspark.sql import SparkSession, functions as F, types as T
 from scipy.optimize import fsolve
 import numpy as np
 
@@ -135,10 +136,11 @@ class UnimodalUserProjection:
         from block_list
         """
         )
+        block_list.cache()
 
         # this could also be read from a file, but it seems fine to solve on the spot
-        max_block_size = block_list.selectExpr("max(n_users) as n").collect()[0].n
-        any_bound, all_bound = markov_bound(n, epsilon)
+        n = block_list.selectExpr("max(n_users) as n").collect()[0].n
+        bounds = markov_bound(n, epsilon)
 
         @F.udf(T.ArrayType(T.ArrayType(T.IntegerType())))
         def sample_edges(user_set):
@@ -159,6 +161,7 @@ class UnimodalUserProjection:
             .agg(F.expr("count(*) as weight"))
         )
         projection.createOrReplaceTempView("reduced_quarterly_block_projection")
+        block_list.unpersist()
 
 
 @click.command()
