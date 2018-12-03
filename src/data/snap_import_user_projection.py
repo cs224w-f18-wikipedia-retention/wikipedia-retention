@@ -6,6 +6,7 @@ import sys
 import logging
 from functools import partial
 from itertools import combinations
+from random import random
 
 from pyspark.sql import SparkSession, functions as F, types as T
 from scipy.optimize import fsolve
@@ -139,7 +140,9 @@ class UnimodalUserProjection:
         block_list.cache()
 
         # this could also be read from a file, but it seems fine to solve on the spot
-        n = block_list.selectExpr("max(n_users) as n").collect()[0].n
+        #n = block_list.selectExpr("max(n_users) as n").collect()[0].n
+        #print("finding markov bound up to {}".format(n))
+        n = 2000
         bounds = markov_bound(n, epsilon)
 
         @F.udf(T.ArrayType(T.ArrayType(T.IntegerType())))
