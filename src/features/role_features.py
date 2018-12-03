@@ -26,22 +26,15 @@ def cli():
 )
 @click.option("--input", type=click.Path(exists=True), required=True)
 @click.option("--output", type=click.Path(exists=False), required=True)
-@click.option("--lower-bound", type=int, default=2)
-@click.option("--upper-bound", type=int, default=3)
-def role_mine(rolx_bin, input, output, lower_bound, upper_bound):
+def role_mine(rolx_bin, input, output):
     folder = tempfile.mkdtemp()
     call(
-        [
-            rolx_bin,
-            "-i:" + str(Path(input).resolve()),
-            "-l:" + str(lower_bound),
-            "-u:" + str(upper_bound),
-        ],
+        [rolx_bin, "-i:" + str(Path(input).resolve())],
         stdout=stdout,
         cwd=folder,
     )
 
-    shutil.copyfile(folder + "/roles.txt", output + "-roles")
+    shutil.copyfile(folder + "/mappings.txt", output + "-mappings")
     shutil.copyfile(folder + "/v.txt", output + "-v")
 
 
