@@ -91,7 +91,7 @@ def average_roles(enwiki_meta, rolx_roles, output):
         "article_id",
         "edit_date",
         *[
-            (F.col(x) / F.col("deg")).alias(f"role_{x}")
+            (F.col(x) / F.col("deg")).alias("role_{}".format(x))
             for x in article_roles.columns[2:]
         ],
     )
