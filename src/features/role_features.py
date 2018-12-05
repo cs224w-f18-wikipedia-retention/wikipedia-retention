@@ -28,19 +28,47 @@ def cli():
 @click.option("--output", type=click.Path(exists=False), required=True)
 def role_mine(rolx_bin, input, output):
     folder = tempfile.mkdtemp()
-    call(
-        [rolx_bin, "-i:" + str(Path(input).resolve())],
-        stdout=stdout,
-        cwd=folder,
-    )
+    call([rolx_bin, "-i:" + str(Path(input).resolve())], stdout=stdout, cwd=folder)
 
     shutil.copyfile(folder + "/mappings.txt", output + "-mappings")
     shutil.copyfile(folder + "/v.txt", output + "-v")
 
 
+import pandas as pd
+from sklearn.decomposition import NMF
+import numpy as np
+
+
+@cli.command()
+@click.option("--path", required=True)
+@click.option("--n-components", default=16)
+def role_factorize(path, n_components):
+    mappings_file = path + "-mappings"
+    v_file = path + "-v"
+    assert os.path.exists(mappings_file) and os.path.exists(v_file)
+
+    rolx_vec = pd.read_csv(v_file, header=None, sep=" ")
+    rolx_mapping = pd.read_csv(mappings_file, header=None, skiprows=1, sep=" ")
+    df = pd.concat([rolx_mapping, rolx_vec], axis=1).iloc[:, 1:]
+
+    print("factorizing {}".format(v_file))
+    nmf = NMF(n_components=16, solver="mu", beta_loss="kullback-leibler", max_iter=1000)
+
+    X = df.values[:, 1:]
+    W = nmf.fit_transform(X)
+    H = nmf.components_
+
+    print("factorized matrix G and F")
+    pd.concat([df.iloc[:, 0], pd.DataFrame(W)], axis=1).to_csv(
+        path + "-nmf-G.csv", index=False
+    )
+    pd.DataFrame(H).to_csv(path + "-nmf-F.csv", index=False)
+
+
 from src.data.snap_import_user_projection import UnimodalUserProjection
 from pyspark.sql import SparkSession, functions as F
 import pandas as pd
+
 
 @cli.command()
 @click.option(
@@ -56,7 +84,7 @@ import pandas as pd
 @click.option(
     "--output",
     type=click.Path(exists=False),
-    default=str(project_dir/"data/processed/role-features")
+    default=str(project_dir / "data/processed/role-features"),
 )
 def average_roles(enwiki_meta, rolx_roles, output):
     spark = SparkSession.builder.getOrCreate()
@@ -106,8 +134,9 @@ def average_roles(enwiki_meta, rolx_roles, output):
     avg_roles = user_roles.toPandas()
     df = avg_roles.iloc[:, 1:]
     # https://stackoverflow.com/a/35679163
-    df = pd.concat([avg_roles.iloc[:,1], df.div(df.sum(axis=0), axis=1)], axis=1)
+    df = pd.concat([avg_roles.iloc[:, 1], df.div(df.sum(axis=0), axis=1)], axis=1)
     df.to_csv(output)
+
 
 if __name__ == "__main__":
     cli()
