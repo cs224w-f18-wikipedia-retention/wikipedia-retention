@@ -5,21 +5,24 @@ import pandas as pd
 import sklearn
 
 # load features
-uf_name = 'base_features_reg.csv'
-af_name = 'all_article_features.csv'
-cf_name = 'community_features.csv'
+uf_name = 'src/data/processed/base_features_reg.csv'
+af_name = 'src/data/processed/all_article_features.csv'
+cf_name = 'src/data/processed/community_features.csv'
+cfa_name = 'src/data/processed/community_article_features.csv'
 
 user_df = pd.read_csv(uf_name, header=None)
 y = np.ndarray.astype(user_df.values[:,-1],int)
 user_df = user_df.drop([1,user_df.columns[-1]],axis=1) # drop time and y column
 article_df = pd.read_csv(af_name, header=None)
 community_df = pd.read_csv(cf_name, header=None)
-community_df = community_df.drop([1,2],axis=1)
+cfa_df = pd.read_csv(cfa_name, header=None) # article-based community features
+#community_df = community_df.drop([1,2],axis=1)
 
 # process joined data
 ua_df = user_df.merge(article_df, on=0)
 uac_df = ua_df.merge(community_df, how='left', on=0)
-X = uac_df.as_matrix()
+uacc_df = uac_df.merge(cfa_df, how='left', on=0)
+X = uacc_df.as_matrix()
 X = np.ndarray.astype(X[:,1:],float) # remove user_id
 X = np.ndarray.astype()
 X[np.isnan(X)] = 0 # clear NaNs
@@ -34,6 +37,10 @@ dmin = scalar.data_min_
 dmax = scalar.data_max_
 Xnorm = scalar.transform(X)
 Xnorm = Xnorm - Xnorm.mean(axis=0)
+# gaussian norm on features
+from sklearn.preprocessing import scale
+Xnorm = scale(Xnorm)
+
 
 # setup train-test split. might want train-dev-test for final model testing
 # could also rebalance (since so many 0 examples)
@@ -100,3 +107,24 @@ def plot_class_hist(theta_idx, class_preds):
     plt.ylabel("Bin Count")
     plt.legend()
     plt.show()
+
+# rfe on regression
+from sklearn.feature_selection import RFE
+from sklearn.linear_model import Ridge as RR
+RRm = RR(alpha=0.1)
+rfs = RFE(estimator = RRm, n_features_to_select=1, step=1, verbose=1)
+rfs.fit(X_theta,yl_theta)
+reg_idx = np.argsort(rfs.ranking_)
+
+# rfe on classification
+from sklearn.linear_model import LogisticRegression as LR
+LRm = LR(penalty='l2')
+cfs = RFE(estimator = LRm, n_features_to_select=1, step=1)
+cfs.fit(Xnorm,theta)
+class_idx = np.argsort(cfs.ranking_)
+
+# outputs to save
+np.savetxt('prev_y.csv', lslt, delimiter = ',', header='y')
+np.savetxt('target_y.csv', yl, delimiter = ',', header='y')
+np.savetxt('src/data/processed/reg_y.csv', reg_preds, delimiter = ',', header='y')
+np.savetxt('src/data/processed/class_preds.csv', class_preds, delimiter = ',', header='y')
