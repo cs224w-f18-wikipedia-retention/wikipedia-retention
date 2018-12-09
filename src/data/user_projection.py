@@ -1,6 +1,6 @@
 # script for generating user-user projection.
 # copied from anthony's notebook mostly, with modifications to split users by timestamp
-from src.data.snap_import_user_projection import UnimodalUserProjection
+from snap_import_user_projection import UnimodalUserProjection
 from pyspark.sql import SparkSession, functions as F
 
 spark = SparkSession.builder.getOrCreate()
