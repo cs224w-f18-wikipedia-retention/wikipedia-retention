@@ -4,7 +4,7 @@ spark = SparkSession.builder.getOrCreate()
 base_file = 'src/gen-louvain/default_assign.txt'
 ind_file = 'src/gen-louvain/ind_assign.txt'
 base_df = spark.read.option("delimiter"," ").csv(base_file)
-Ind_df = spark.read.option("delimiter"," ").csv(ind_file)
+ind_df = spark.read.option("delimiter"," ").csv(ind_file)
 base_df.registerTempTable("bases")
 ind_df.registerTempTable("inds")
 sizes = spark.sql("""
