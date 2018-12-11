@@ -2,7 +2,7 @@ from pyspark.sql import SparkSession, functions as F
 ss = SparkSession.builder.getOrCreate()
 proj_parquet = 'user-network-v3.snappy.parquet'
 proj_file = 'uuel.tsv'
-community_file = 'community_assignments.csv'
+community_file = 'src/gen-louvain/assign.txt'
 #community_file = 'community_assignments_indetermination.csv'
 df = ss.read.parquet(proj_parquet)
 df.registerTempTable("uu_edges")
