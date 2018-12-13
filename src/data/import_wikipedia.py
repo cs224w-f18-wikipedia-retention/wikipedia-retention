@@ -96,7 +96,7 @@ def transform(dataframe, limit=None):
             return F.col(name).cast(typemap[name])
         return F.col(name)
 
-    cast_query = map(cast, dataframe.columns)
+    cast_query = list(map(cast, dataframe.columns))
     dataframe = dataframe.select(cast_query)
 
     # include limits
