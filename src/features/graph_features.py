@@ -46,3 +46,28 @@ snap.GetArtPoints(G, ArtNIdV)
 with open(base + "art.txt", "w") as f:
     for NI in ArtNIdV:
         f.write("{}\n".format(NI))
+
+
+# something else
+G = snap.LoadEdgeList(snap.PUNGraph, "data/processed/uu_full.csv", 0, 1, "\t")
+G2 = snap.LoadEdgeList(snap.PUNGraph, "data/processed/aa_full_headers.csv", 0, 1, "\t")
+snap.GetClustCf(G, 10000)
+
+G = snap.TUNGraph.New()
+d = {}
+counter = 0
+with open("data/processed/aa_full_headers.csv", 'r') as f:
+    for line in f:
+        x, y, _ = map(int, line.split())
+        if x not in d:
+            d[x] = counter
+            G.AddNode(counter)
+            counter += 1
+        if y not in d:
+            d[y] = counter
+            G.AddNode(counter)
+            counter += 1
+        G.AddEdge(d[x], d[y])
+
+G.GetNodes()
+G.GedEdges()
