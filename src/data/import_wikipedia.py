@@ -87,6 +87,7 @@ def transform(dataframe, limit=None):
             ("timestamp", "timestamp"),
             ("minor", "boolean"),
             ("textdata", "int"),
+            ("user_id", "int"),
         ]
     )
 
