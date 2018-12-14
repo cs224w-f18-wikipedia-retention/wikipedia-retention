@@ -99,6 +99,26 @@ def transform(dataframe, limit=None):
     cast_query = list(map(cast, dataframe.columns))
     dataframe = dataframe.select(cast_query)
 
+    to_array = {
+        "category",
+        "image",
+        "main",
+        "talk",
+        "user",
+        "user_talk",
+        "other",
+        "external",
+        "template",
+    }
+
+    def split(name):
+        if name in to_array:
+            return F.split(name, " ").alias(name)
+        return F.col(name)
+
+    split_query = list(map(split, dataframe.columns))
+    dataframe = dataframe.select(split_query)
+
     # include limits
     if limit:
         dataframe = dataframe.limit(limit)
@@ -108,12 +128,17 @@ def transform(dataframe, limit=None):
     )
 
 
-def load(dataframe, path):
+def load(dataframe, path, mode):
     logging.info("writing to {}".format(path))
-    dataframe.write.partitionBy("year", "quarter").parquet(path, mode="overwrite")
+    dataframe.write.partitionBy("year", "quarter").parquet(path, mode=mode)
 
 
-@click.command()
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
 @click.option(
     "--input-path",
     type=click.Path(exists=True),
@@ -123,22 +148,38 @@ def load(dataframe, path):
     "--output-path", type=click.Path(), default="data/interim/enwiki-meta-parquet"
 )
 @click.option("--limit", type=int, default=None)
-@click.option("--dry-run/--no-dry-run", default=True)
-def main(input_path, output_path, limit, dry_run):
+@click.option("--overwrite/--no-overwrite", default=False)
+def bz2parquet(input_path, output_path, limit, overwrite):
     spark = get_spark()
-
     edits_rdd = extract(spark, input_path)
     edits_df = transform(edits_rdd, limit)
+    load(edits_df, output_path, "overwrite" if overwrite else "error")
 
-    if dry_run:
-        logging.info("dry run")
-        return
 
-    load(edits_df, output_path)
+@cli.command()
+@click.option(
+    "--input-path",
+    type=click.Path(exists=True),
+    default="data/interim/enwiki-meta-parquet",
+)
+@click.option(
+    "--output-path", type=click.Path(), default="data/processed/enwiki-meta-parquet"
+)
+@click.option("--n-partitions", type=int, default=48)
+@click.option("--overwrite/--no-overwrite", default=False)
+def coalesce(input_path, output_path, n_partitions, overwrite):
+    spark = get_spark()
+
+    mode = "overwrite" if overwrite else "error"
+    (
+        spark.read.parquet(input_path)
+        .orderBy("year", "quarter", "article_id", "timestamp")
+        .coalesce(n_partitions)
+        .write.parquet(output_path, mode=mode)
+    )
 
 
 if __name__ == "__main__":
     log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     logging.basicConfig(level=logging.INFO, format=log_fmt)
-
     main()
