@@ -15,6 +15,13 @@ import numpy as np
 import click
 
 
+# TODO:
+# - remap user-ids for louvain (continuous)
+# - remap user-ids for refex (hashed to be disjoint)
+# - project onto articles
+
+
+# option to read from known good state
 def markov_bound(n, epsilon, method="any"):
     # see src/data/gen_markov_bounds
     # loop over all n using previous value as seed
@@ -46,6 +53,7 @@ class UnimodalUserProjection:
         self.create_bipartite_edgelist(period)
 
         # register views
+        self.block_list()
         self.daily_block_projection()
         self.reduced_quarterly_block_projection(epsilon)
         return self
@@ -118,49 +126,65 @@ class UnimodalUserProjection:
         projection = self.spark.sql(query)
         projection.createOrReplaceTempView("daily_block_projection")
 
-    def reduced_quarterly_block_projection(self, epsilon):
+    def block_list(self):
         block_list = self.spark.sql(
             """
-        with block_list as (
+            with block_list as (
+                select
+                    article_id,
+                    concat(year(edit_date), '-', quarter(edit_date)) as edit_date,
+                    collect_set(user_id) as user_set
+                from bipartite
+                group by 1,2
+            )
             select
                 article_id,
-                concat(year(edit_date), '-', quarter(edit_date)) as edit_date,
-                collect_set(user_id) as user_set
-            from bipartite
-            group by 1,2
-        )
-        select
-            article_id,
-            edit_date,
-            size(user_set) as n_users,
-            user_set
-        from block_list
-        """
-        )
+                edit_date,
+                size(user_set) as n_users,
+                user_set
+            from block_list
+            """
+            )
+        block_list.createOrReplaceTempView("block_list")
+
+    def reduced_quarterly_block_projection(self, epsilon):
+        block_list = self.spark.table("block_list")
         block_list.cache()
 
         # this could also be read from a file, but it seems fine to solve on the spot
-        #n = block_list.selectExpr("max(n_users) as n").collect()[0].n
+        # very slow
+        # n = block_list.selectExpr("max(n_users) as n").collect()[0].n
         #print("finding markov bound up to {}".format(n))
         n = 2000
+
+        # should come from a powerlaw, fitness of user
         bounds = markov_bound(n, epsilon)
 
-        @F.udf(T.ArrayType(T.ArrayType(T.IntegerType())))
+        # minhash with bounds precision and recall (f1-accuracy)
+        schema = \
+            T.ArrayType(T.StructType([
+                T.StructField("e1", T.IntegerType(), False),
+                T.StructField("e2", T.IntegerType(), False),
+            ])
+        @F.udf(schema)
         def sample_edges(user_set):
             k = len(user_set)
             if k < 2:
                 return []
             p = bounds[k]
-            edges = [c for c in combinations(sorted(user_set), 2) if random() < p]
-            return edges
+            n = int(np.ceil(k*(k-1)/2 * p))
+
+            edges = set()
+            while len(edges) < n:
+                i, j = np.sort(np.random.choice(k, 2, replace=False))
+                edge = user_set[edges[i]], user_set[edges[j]]
+                edges.add(edge)
+
+            return list(edges)
 
         projection = (
-            block_list.select(F.explode(sample_edges("user_set")).alias("edges"))
-            .select(
-                F.col("edges").getItem(0).alias("e1"),
-                F.col("edges").getItem(1).alias("e2"),
-            )
-            .groupby("e1", "e2")
+            block_list.select(F.explode(sample_edges("user_set")).alias("edge"))
+            .groupby("edge.e1", "edge.e2")
             .agg(F.expr("count(*) as weight"))
         )
         projection.createOrReplaceTempView("reduced_quarterly_block_projection")
