@@ -9,7 +9,6 @@ import pyspark.sql.types as T
 
 import click
 
-
 wikipedia_field_names = [
     "revision",
     "category",
@@ -133,20 +132,14 @@ def load(dataframe, path, mode):
     dataframe.write.partitionBy("year", "quarter").parquet(path, mode=mode)
 
 
-@click.group()
+@click.group(name="impwiki")
 def cli():
     pass
 
 
 @cli.command()
-@click.option(
-    "--input-path",
-    type=click.Path(exists=True),
-    default="data/raw/enwiki-20080103.main.bz2",
-)
-@click.option(
-    "--output-path", type=click.Path(), default="data/interim/enwiki-meta-parquet"
-)
+@click.option("--input-path", type=click.Path(exists=True), required=True)
+@click.option("--output-path", type=click.Path(), required=True)
 @click.option("--limit", type=int, default=None)
 @click.option("--overwrite/--no-overwrite", default=False)
 def bz2parquet(input_path, output_path, limit, overwrite):
@@ -157,14 +150,8 @@ def bz2parquet(input_path, output_path, limit, overwrite):
 
 
 @cli.command()
-@click.option(
-    "--input-path",
-    type=click.Path(exists=True),
-    default="data/interim/enwiki-meta-parquet",
-)
-@click.option(
-    "--output-path", type=click.Path(), default="data/processed/enwiki-meta-parquet"
-)
+@click.option("--input-path", type=click.Path(exists=True), required=True)
+@click.option("--output-path", type=click.Path(), required=True)
 @click.option("--n-partitions", type=int, default=48)
 @click.option("--overwrite/--no-overwrite", default=False)
 def coalesce(input_path, output_path, n_partitions, overwrite):

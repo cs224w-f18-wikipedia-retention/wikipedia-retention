@@ -193,18 +193,23 @@ class UnimodalUserProjection:
         block_list.unpersist()
 
 
-@click.command()
+@click.group(name="projection")
+def cli():
+    pass
+
+
+@cli.command()
 @click.option(
     "--input-path",
     type=click.Path(exists=True),
     default="data/processed/enwiki-meta-compact",
 )
-@click.option("--output-suffix", type=click.Path(), default="user-network-v3")
+@click.option("--output-suffix", type=click.Path(), required=True)
 @click.option("--period", type=str)
 @click.option(
     "--epsilon", type=float, default=0.01, help="markov bound on number of nodes"
 )
-def main(input_path, output_suffix, period, epsilon):
+def project_user(input_path, output_suffix, period, epsilon):
     transformer = (
         UnimodalUserProjection().extract(input_path).transform(period, epsilon)
     )
