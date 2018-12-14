@@ -14,7 +14,6 @@ import numpy as np
 
 import click
 
-
 # TODO:
 # - remap user-ids for louvain (continuous)
 # - remap user-ids for refex (hashed to be disjoint)
@@ -144,7 +143,7 @@ class UnimodalUserProjection:
                 user_set
             from block_list
             """
-            )
+        )
         block_list.createOrReplaceTempView("block_list")
 
     def reduced_quarterly_block_projection(self, epsilon):
@@ -154,32 +153,35 @@ class UnimodalUserProjection:
         # this could also be read from a file, but it seems fine to solve on the spot
         # very slow
         # n = block_list.selectExpr("max(n_users) as n").collect()[0].n
-        #print("finding markov bound up to {}".format(n))
+        # print("finding markov bound up to {}".format(n))
         n = 2000
 
         # should come from a powerlaw, fitness of user
         bounds = markov_bound(n, epsilon)
 
         # minhash with bounds precision and recall (f1-accuracy)
-        schema = \
-            T.ArrayType(T.StructType([
-                T.StructField("e1", T.IntegerType(), False),
-                T.StructField("e2", T.IntegerType(), False),
-            ])
+        schema = T.ArrayType(
+            T.StructType(
+                [
+                    T.StructField("e1", T.IntegerType(), False),
+                    T.StructField("e2", T.IntegerType(), False),
+                ]
+            )
+        )
+
         @F.udf(schema)
         def sample_edges(user_set):
             k = len(user_set)
             if k < 2:
                 return []
             p = bounds[k]
-            n = int(np.ceil(k*(k-1)/2 * p))
+            n = int(np.ceil(k * (k - 1) / 2 * p))
 
             edges = set()
             while len(edges) < n:
                 i, j = np.sort(np.random.choice(k, 2, replace=False))
                 edge = user_set[edges[i]], user_set[edges[j]]
                 edges.add(edge)
-
             return list(edges)
 
         projection = (
