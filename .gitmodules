@@ -1,3 +1,6 @@
 [submodule "dependencies/snap"]
 	path = dependencies/snap
 	url = https://github.com/cs224w-f18-wikipedia-retention/snap.git
+[submodule "dependencies/snap-python"]
+	path = dependencies/snap-python
+	url = git@github.com:cs224w-f18-wikipedia-retention/snap-python.git
