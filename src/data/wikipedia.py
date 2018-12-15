@@ -132,7 +132,7 @@ def load(dataframe, path, mode):
     dataframe.write.partitionBy("year", "quarter").parquet(path, mode=mode)
 
 
-@click.group(name="impwiki")
+@click.group(name="wikipedia")
 def cli():
     pass
 
